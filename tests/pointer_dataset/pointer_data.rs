@@ -18,8 +18,8 @@ use palette::white_point::WhitePoint;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct PointerWP;
-impl<T: Float> WhitePoint<T> for PointerWP {
-    fn get_xyz() -> Xyz<Self, T> {
+impl WhitePoint for PointerWP {
+    fn get_xyz<Wp: WhitePoint, T: Float>() -> Xyz<Wp, T> {
         Xyz::with_wp(flt(0.980722647624), T::one(), flt(1.182254189827))
     }
 }
