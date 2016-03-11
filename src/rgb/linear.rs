@@ -6,15 +6,16 @@ use std::marker::PhantomData;
 
 use {Alpha, Luma, Xyz, Hsv, Hsl, RgbHue};
 use {Limited, Mix, Shade, GetHue, FromColor, Blend, ComponentWise};
-use white_point::{WhitePoint, D65};
+use white_point::WhitePoint;
 use matrix::{matrix_inverse, multiply_xyz_to_rgb, rgb_to_xyz_matrix};
 use {clamp, flt};
-use pixel::{RgbPixel, Srgb, GammaRgb};
+use pixel::{RgbPixel, GammaRgb};
 use blend::PreAlpha;
-use rgb::RgbSpace;
+use rgb::{Rgb, Rgba, RgbSpace, RgbStandard};
+use rgb::standards::Srgb;
 
-///Linear RGB with an alpha component. See the [`LinRgba` implementation in `Alpha`](struct.Alpha.html#LinRgba).
-pub type LinRgba<S = ::rgb::standards::Srgb, T = f32> = Alpha<LinRgb<S, T>, T>;
+///Linear RGB with an alpha component. See the [`LinRgba` implementation in `Alpha`](../struct.Alpha.html#LinRgba).
+pub type LinRgba<S = Srgb, T = f32> = Alpha<LinRgb<S, T>, T>;
 
 ///Linear RGB.
 ///
@@ -29,7 +30,7 @@ pub type LinRgba<S = ::rgb::standards::Srgb, T = f32> = Alpha<LinRgb<S, T>, T>;
 ///displayable RGB, such as sRGB. See the [`pixel`](pixel/index.html) module
 ///for encoding types.
 #[derive(Debug, PartialEq)]
-pub struct LinRgb<S = ::rgb::standards::Srgb, T = f32>
+pub struct LinRgb<S = Srgb, T = f32>
     where T: Float,
         S: RgbSpace
 {
@@ -45,8 +46,7 @@ pub struct LinRgb<S = ::rgb::standards::Srgb, T = f32>
     ///highest displayable amount.
     pub blue: T,
 
-    ///The white point associated with the color's illuminant and observer.
-    ///D65 for 2 degree observer is used by default.
+    ///The kind of RGB space. sRGB is the default.
     pub space: PhantomData<S>,
 }
 
@@ -62,11 +62,11 @@ impl<S, T> Clone for LinRgb<S, T>
     fn clone(&self) -> LinRgb<S, T> { *self }
 }
 
-impl<T> LinRgb<::rgb::standards::Srgb, T>
+impl<T> LinRgb<Srgb, T>
     where T: Float,
 {
     ///Linear RGB with white point D65.
-    pub fn new(red: T, green: T, blue: T) -> LinRgb<::rgb::standards::Srgb, T> {
+    pub fn new(red: T, green: T, blue: T) -> LinRgb<Srgb, T> {
         LinRgb {
             red: red,
             green: green,
@@ -76,7 +76,7 @@ impl<T> LinRgb<::rgb::standards::Srgb, T>
     }
 
     ///Linear RGB from 8 bit values with whtie point D65.
-    pub fn new_u8(red: u8, green: u8, blue: u8) -> LinRgb<::rgb::standards::Srgb, T> {
+    pub fn new_u8(red: u8, green: u8, blue: u8) -> LinRgb<Srgb, T> {
         LinRgb {
             red: flt::<T,_>(red) / flt(255.0),
             green: flt::<T,_>(green) / flt(255.0),
@@ -116,13 +116,13 @@ impl<S, T> LinRgb<S, T>
         LinRgb::with_wp(r, g, b)
     }
 
-    ///Convert to a linear RGB pixel. `LinRgb` is already assumed to be linear,
+    ///Convert to a linear RGB pixel. `LinSrgb` is already assumed to be linear,
     ///so the components will just be clamped to [0.0, 1.0] before conversion.
     ///
     ///```
-    ///use palette::LinRgb;
+    ///use palette::LinSrgb;
     ///
-    ///let c = LinRgb::new(0.5, 0.3, 0.1);
+    ///let c = LinSrgb::new(0.5, 0.3, 0.1);
     ///assert_eq!((c.red, c.green, c.blue), c.to_pixel());
     ///assert_eq!((0.5, 0.3, 0.1), c.to_pixel());
     ///```
@@ -136,12 +136,12 @@ impl<S, T> LinRgb<S, T>
     }
 }
 
-///<span id="LinRgba"></span>[`LinRgba`](type.LinRgba.html) implementations.
-impl<T> Alpha<LinRgb<::rgb::standards::Srgb, T>, T>
+///<span id="LinRgba"></span>[`LinRgba`](rgb/type.LinRgba.html) implementations.
+impl<T> Alpha<LinRgb<Srgb, T>, T>
     where T: Float,
 {
     ///Linear RGB with transparency and with white point D65.
-    pub fn new(red: T, green: T, blue: T, alpha: T) -> LinRgba<::rgb::standards::Srgb, T> {
+    pub fn new(red: T, green: T, blue: T, alpha: T) -> LinRgba<Srgb, T> {
         Alpha {
             color: LinRgb::new(red, green, blue),
             alpha: alpha,
@@ -149,7 +149,7 @@ impl<T> Alpha<LinRgb<::rgb::standards::Srgb, T>, T>
     }
 
     ///Linear RGB with transparency from 8 bit values and with white point D65.
-    pub fn new_u8(red: u8, green: u8, blue: u8, alpha: u8) -> LinRgba<::rgb::standards::Srgb, T> {
+    pub fn new_u8(red: u8, green: u8, blue: u8, alpha: u8) -> LinRgba<Srgb, T> {
         Alpha {
             color: LinRgb::new_u8(red, green, blue),
             alpha: flt::<T,_>(alpha) / flt(255.0),
@@ -185,13 +185,13 @@ impl<S, T> Alpha<LinRgb<S, T>, T>
         LinRgba::with_wp(r, g, b, a)
     }
 
-    ///Convert to a linear RGB pixel. `LinRgb` is already assumed to be linear,
+    ///Convert to a linear RGB pixel. `LinSrgba` is already assumed to be linear,
     ///so the components will just be clamped to [0.0, 1.0] before conversion.
     ///
     ///```
-    ///use palette::LinRgba;
+    ///use palette::LinSrgba;
     ///
-    ///let c = LinRgba::new(0.5, 0.3, 0.1, 0.5);
+    ///let c = LinSrgba::new(0.5, 0.3, 0.1, 0.5);
     ///assert_eq!((c.red, c.green, c.blue, c.alpha), c.to_pixel());
     ///assert_eq!((0.5, 0.3, 0.1, 0.5), c.to_pixel());
     ///```
@@ -550,11 +550,12 @@ impl<S, T> From<Alpha<LinRgb<S, T>, T>> for LinRgb<S, T>
     }
 }
 
-impl<T> From<Srgb<D65, T>> for LinRgb<::rgb::standards::Srgb, T>
+impl<S, T> From<Rgb<S, T>> for LinRgb<S::Space, T>
     where T: Float,
+        S: RgbStandard,
 {
-    fn from(srgb: Srgb<D65, T>) -> LinRgb<::rgb::standards::Srgb, T> {
-        srgb.to_linear().into()
+    fn from(srgb: Rgb<S, T>) -> LinRgb<S::Space, T> {
+        srgb.into_linear().into()
     }
 }
 
@@ -567,11 +568,12 @@ impl<S, T> From<GammaRgb<S::WhitePoint, T>> for LinRgb<S, T>
     }
 }
 
-impl<T> From<Srgb<D65, T>> for Alpha<LinRgb<::rgb::standards::Srgb, T>, T>
+impl<S, T> From<Rgba<S, T>> for Alpha<LinRgb<S::Space, T>, T>
     where T: Float,
+        S: RgbStandard,
 {
-    fn from(srgb: Srgb<D65, T>) -> Alpha<LinRgb<::rgb::standards::Srgb, T>, T> {
-        srgb.to_linear()
+    fn from(srgb: Rgba<S, T>) -> Alpha<LinRgb<S::Space, T>, T> {
+        srgb.into_linear()
     }
 }
 
@@ -615,7 +617,7 @@ impl<S, T> ApproxEq for LinRgb<S, T>
 
 #[cfg(test)]
 mod test {
-    use LinRgb;
+    use super::LinRgb;
     use rgb::standards::Srgb;
 
     #[test]
